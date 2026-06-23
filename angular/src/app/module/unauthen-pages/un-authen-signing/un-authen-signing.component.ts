@@ -474,15 +474,22 @@ export class UnAuthenSigningComponent
                   };
                 });
 
+                let signatureDigitalPayload = {
+                  base64Pdf: contract.base64Pdf,
+                  signatureBase64: this.imageSignatureDigital,
+                  signatures: signatureDigitalWithShowSignDate,
+                };
+
                 this.desktopAppServiceService
-                  .SignDigital(signatureDigitalWithShowSignDate)
+                  .SignDigital(signatureDigitalPayload)
                   .pipe(
-                    concatMap((value) => {
+                    concatMap((val) => {
+                      let value = this.getSignedPdfBase64(val);
                       if (value == null || value == "") {
                         this.statusSign = "Start";
                         this.idPage = -1;
                         abp.message.error(
-                          this.ecTransform("SigningFailedPleaseRecheckUSB")
+                          (val as any)?.Msg || this.ecTransform("SigningFailedPleaseRecheckUSB")
                         );
                         return;
                       }
@@ -608,12 +615,13 @@ export class UnAuthenSigningComponent
                 this.desktopAppServiceService
                   .SignDigital(signatureDigitalPayload)
                   .pipe(
-                    concatMap((rs) => {
+                    concatMap((res) => {
+                      let rs = this.getSignedPdfBase64(res);
                       if (rs == null || rs == "") {
                         this.statusSign = "Start";
                         this.idPage = -1;
                         abp.message.error(
-                          this.ecTransform("SigningFailedPleaseRecheckUSB")
+                          (res as any)?.Msg || this.ecTransform("SigningFailedPleaseRecheckUSB")
                         );
                         return;
                       }
@@ -791,12 +799,13 @@ export class UnAuthenSigningComponent
         this.desktopAppServiceService
           .SignDigital(signatureDigitalPayload)
           .pipe(
-            concatMap((value) => {
+            concatMap((val) => {
+              let value = this.getSignedPdfBase64(val);
               if (value == null || value == "") {
                 this.statusSign = "Start";
                 this.idPage = -1;
                 abp.message.error(
-                  this.ecTransform("SigningFailedPleaseRecheckUSB")
+                  (val as any)?.Msg || this.ecTransform("SigningFailedPleaseRecheckUSB")
                 );
                 return;
               }
@@ -874,12 +883,13 @@ export class UnAuthenSigningComponent
         this.desktopAppServiceService
           .SignDigital(signatureDigitalPayload)
           .pipe(
-            concatMap((rs) => {
+            concatMap((res) => {
+              let rs = this.getSignedPdfBase64(res);
               if (rs == null || rs == "") {
                 this.statusSign = "Start";
                 this.idPage = -1;
                 abp.message.error(
-                  this.ecTransform("SigningFailedPleaseRecheckUSB")
+                  (res as any)?.Msg || this.ecTransform("SigningFailedPleaseRecheckUSB")
                 );
                 return;
               }
@@ -1143,6 +1153,27 @@ export class UnAuthenSigningComponent
     }
   }
 
+  getSignedPdfBase64(rs: any): string {
+    if (!rs) return "";
+    let base64 = "";
+    if (typeof rs === "string") {
+      base64 = rs;
+    } else if (rs.Result) {
+      base64 = rs.Result;
+    } else if (rs.result) {
+      base64 = rs.result;
+    } else if (rs.SignatureBase64) {
+      base64 = rs.SignatureBase64;
+    } else if (rs.signatureBase64) {
+      base64 = rs.signatureBase64;
+    }
+    
+    if (base64 && !base64.startsWith("data:")) {
+      base64 = "data:application/pdf;base64," + base64;
+    }
+    return base64;
+  }
+
   async handlePostSignature($event, signature) {
     this.signatureElectronic?.push($event);
     let indexSignature = this.listSignature.findIndex(
@@ -1222,22 +1253,26 @@ export class UnAuthenSigningComponent
                   width: "30%",
                   height: "35%",
                 });
+              } else {
+                abp.message.error(result.Msg || this.ecTransform("SigningFailedPleaseRecheckUSB"));
               }
-              ref?.afterClosed().subscribe((value: CertificateDetailDto) => {
-                if (value) {
-                  signature.ownCA = value.ownCA;
-                  signature.isTemporarySigned = true;
-                  let signatureToken = $event;
-                  signatureToken.certSerial = value.certSerial;
-                  signatureToken.beginDateCA = value.beginDateCA;
-                  signatureToken.endDateCA = value.endDateCA;
-                  signatureToken.ownCA = value.ownCA;
-                  signatureToken.uid = value.uid;
-                  signatureToken.organizationCA = value.organizationCA;
-                  this.listSignature.push(signatureToken);
-                  return;
-                }
-              });
+              if (ref) {
+                ref.afterClosed().subscribe((value: CertificateDetailDto) => {
+                  if (value) {
+                    signature.ownCA = value.ownCA;
+                    signature.isTemporarySigned = true;
+                    let signatureToken = $event;
+                    signatureToken.certSerial = value.certSerial;
+                    signatureToken.beginDateCA = value.beginDateCA;
+                    signatureToken.endDateCA = value.endDateCA;
+                    signatureToken.ownCA = value.ownCA;
+                    signatureToken.uid = value.uid;
+                    signatureToken.organizationCA = value.organizationCA;
+                    this.listSignature.push(signatureToken);
+                    return;
+                  }
+                });
+              }
             },
             error: () => {
               CustomProtocolCheck(
